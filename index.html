@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手機相機條碼比對系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+        #reader {
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        #result-box {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block;
+            min-width: 280px;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .success {
+            color: #2e7d32;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>條碼 / 二維碼比對系統</h2>
+    
+    <div id="reader"></div>
+    
+    <div id="result-box">
+        <h3>比對結果</h3>
+        <p id="scanned-code">等待掃描...</p>
+        <p id="match-result">—</p>
+    </div>
+
+    <script>
+        // 填入你在 Google Apps Script 部署後取得的 Web App URL
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
+
+        // 當掃描成功時觸發
+        function onScanSuccess(decodedText, decodedResult) {
+            // 停止掃描，避免重複發送請求
+            html5QrcodeScanner.clear();
+            
+            document.getElementById("scanned-code").innerText = "已讀取條碼: " + decodedText;
+            document.getElementById("match-result").className = "loading";
+            document.getElementById("match-result").innerText = "正在連線 Google Sheet 比對中...";
+
+            // 發送請求給 Google Apps Script
+            fetch(`${GAS_URL}?barcode=${encodeURIComponent(decodedText)}`)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById("match-result").className = "success";
+                    document.getElementById("match-result").innerText = data;
+                    
+                    // 3秒後重新啟動掃描器，方便下一次掃描
+                    setTimeout(startScanner, 3000);
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    document.getElementById("match-result").innerText = "連線發生錯誤，請稍後再試";
+                    setTimeout(startScanner, 3000);
+                });
+        }
+
+        function onScanFailure(error) {
+            // 這裡會頻繁丟出「沒偵測到條碼」的訊息，通常保持空白即可，不影響運作
+        }
+
+        // 初始化掃描器
+        let html5QrcodeScanner;
+        function startScanner() {
+            document.getElementById("scanned-code").innerText = "請將條碼對準相機...";
+            document.getElementById("match-result").innerText = "—";
+            document.getElementById("match-result").className = "";
+
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", 
+                { 
+                    fps: 10,       // 每秒偵測幀數
+                    qrbox: { width: 250, height: 150 } // 掃描框大小，可根據條碼形狀調整
+                },
+                /* verbose= */ false
+            );
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+
+        // 網頁載入後啟動
+        window.onload = startScanner;
+    </script>
+</body>
+</html>
