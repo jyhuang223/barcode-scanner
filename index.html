@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>手機相機條碼比對系統</title>
+    <title>2026文具展－產品定價搜尋器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <style>
         body {
@@ -28,6 +28,30 @@
             border-radius: 4px;
             margin: 5px;
         }
+        
+        /* 針對原生相機權限按鈕進行美化 */
+        #reader__camera_permission_button {
+            background-color: #28a745 !important; /* 改成顯眼的綠色 */
+            color: white !important;
+            padding: 12px 20px !important;
+            font-size: 1.1em !important;
+            font-weight: bold !important;
+            border: none !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+
+        /* 🌟 核心關鍵：利用 CSS 隱藏原本的英文，並強制塞入中文「點此開啟相機權限」 */
+        #reader__camera_permission_button {
+            font-size: 0 !important; /* 隱藏原本的英文文字 */
+        }
+        #reader__camera_permission_button::after {
+            content: "📷 點此開啟相機權限" !important; /* 顯示中文文字 */
+            font-size: 16px !important; /* 恢復文字大小 */
+            display: block !important;
+        }
+
         #result-box {
             margin-top: 20px;
             padding: 15px;
@@ -61,7 +85,7 @@
             word-break: break-all;
         }
         #col-c {
-            color: #e53e3e; /* 定價改在 C 欄，用紅色加粗顯示 */
+            color: #e53e3e; 
             font-weight: bold;
         }
         .loading {
@@ -95,7 +119,7 @@
 </head>
 <body>
 
-    <h2>條碼 / 二維碼比對系統</h2>
+    <h2>2026文具展－產品定價搜尋器</h2>
     
     <div id="reader"></div>
     
@@ -133,7 +157,6 @@
                         document.getElementById("match-result").style.display = "none"; 
                         document.getElementById("info-display").style.display = "block"; 
                         
-                        // 填入資料（此時 data.columnB 是品名，data.columnC 是定價）
                         document.getElementById("col-b").innerText = data.columnB; 
                         
                         let price = data.columnC;
