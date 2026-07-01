@@ -20,6 +20,14 @@
             border: 2px solid #333;
             border-radius: 8px;
         }
+        #reader__dashboard_section_csr button {
+            padding: 8px 14px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin: 5px;
+        }
         #result-box {
             margin-top: 20px;
             padding: 15px;
@@ -30,7 +38,7 @@
             width: 100%;
             max-width: 460px;
             box-sizing: border-box;
-            text-align: left; /* 調整為靠左對齊，看欄位較整齊 */
+            text-align: left;
         }
         #result-box h3 {
             text-align: center;
@@ -46,14 +54,14 @@
             font-weight: bold;
             color: #555;
             display: inline-block;
-            width: 70px; /* 固定寬度讓冒號對齊 */
+            width: 70px;
         }
         .value {
             color: #222;
-            word-break: break-all; /* 防止品名過長時爆出框外 */
+            word-break: break-all;
         }
-        #col-d {
-            color: #e53e3e; /* 定價用紅色加粗顯示 */
+        #col-c {
+            color: #e53e3e; /* 定價改在 C 欄，用紅色加粗顯示 */
             font-weight: bold;
         }
         .loading {
@@ -61,21 +69,13 @@
             font-style: italic;
             text-align: center;
         }
-        .success {
-            color: #2e7d32;
-            font-weight: bold;
-            font-size: 1.2em;
-            text-align: center;
-        }
         .error {
             color: #d32f2f;
             font-weight: bold;
             text-align: center;
         }
-        
-        /* 繼續掃描按鈕樣式 */
         .btn-scanAgain {
-            display: none; /* 預設隱藏 */
+            display: none;
             width: 100%;
             padding: 12px;
             margin-top: 15px;
@@ -104,9 +104,8 @@
         <p id="scanned-code" style="text-align: center; color: #666;">等待掃描...</p>
         
         <div id="info-display" style="display: none;">
-            <div class="data-row"><span class="label">型號：</span><span id="col-b" class="value">—</span></div>
-            <div class="data-row"><span class="label">品名：</span><span id="col-c" class="value">—</span></div>
-            <div class="data-row"><span class="label">定價：</span><span id="col-d" class="value">—</span></div>
+            <div class="data-row"><span class="label">品名：</span><span id="col-b" class="value">—</span></div>
+            <div class="data-row"><span class="label">定價：</span><span id="col-c" class="value">—</span></div>
         </div>
 
         <p id="match-result">—</p>
@@ -115,68 +114,53 @@
     </div>
 
     <script>
-        // 填入你在 Google Apps Script 部署後取得的 Web App URL
         const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
 
-        // 當掃描成功時觸發
         function onScanSuccess(decodedText, decodedResult) {
-            // 停止掃描，避免重複發送請求
             html5QrcodeScanner.clear();
             
             document.getElementById("scanned-code").innerText = "已讀取條碼: " + decodedText;
-            document.getElementById("info-display").style.display = "none"; // 先隱藏詳細欄位
+            document.getElementById("info-display").style.display = "none"; 
             document.getElementById("match-result").style.display = "block";
             document.getElementById("match-result").className = "loading";
             document.getElementById("match-result").innerText = "正在連線 Google Sheet 比對中...";
-            document.getElementById("retry-btn").style.display = "none"; // 查詢期間隱藏按鈕
+            document.getElementById("retry-btn").style.display = "none"; 
 
-            // 發送請求給 Google Apps Script
             fetch(`${GAS_URL}?barcode=${encodeURIComponent(decodedText)}`)
-                .then(response => response.json()) // 修改：解析由 GAS 傳來的 JSON 格式物件
+                .then(response => response.json()) 
                 .then(data => {
                     if (data.status === "success") {
-                        document.getElementById("match-result").style.display = "none"; // 隱藏狀態文字
-                        document.getElementById("info-display").style.display = "block"; // 顯示資料區塊
+                        document.getElementById("match-result").style.display = "none"; 
+                        document.getElementById("info-display").style.display = "block"; 
                         
-                        // 將各欄位內容填入對應位置
-                        document.getElementById("col-b").innerText = data.columnB; // 型號
-                        document.getElementById("col-c").innerText = data.columnC; // 品名
+                        // 填入資料（此時 data.columnB 是品名，data.columnC 是定價）
+                        document.getElementById("col-b").innerText = data.columnB; 
                         
-                        // 處理定價顯示，若為純數字則加上千分位與字串
-                        let price = data.columnD;
+                        let price = data.columnC;
                         if(!isNaN(price) && price !== "—" && price !== "") {
-                            document.getElementById("col-d").innerText = "NT$ " + Number(price).toLocaleString();
+                            document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
                         } else {
-                            document.getElementById("col-d").innerText = price; // 定價
+                            document.getElementById("col-c").innerText = price; 
                         }
                     } else {
                         document.getElementById("match-result").className = "error";
                         document.getElementById("match-result").innerText = "找不到此條碼的資料";
                     }
-                    
-                    // 顯示按鈕，讓使用者決定何時繼續掃描
                     document.getElementById("retry-btn").style.display = "block";
                 })
                 .catch(error => {
                     console.error("Error:", error);
                     document.getElementById("match-result").className = "error";
                     document.getElementById("match-result").innerText = "連線發生錯誤，請稍後再試";
-                    
-                    // 發生錯誤也顯示按鈕以便重試
                     document.getElementById("retry-btn").style.display = "block";
                 });
         }
 
-        function onScanFailure(error) {
-            // 這裡會頻繁丟出「沒偵測到條碼」的訊息，通常保持空白即可，不影響運作
-        }
+        function onScanFailure(error) {}
 
-        // 初始化掃描器
         let html5QrcodeScanner;
         function startScanner() {
-            // 重新啟動時，先隱藏按鈕本身
             document.getElementById("retry-btn").style.display = "none";
-            
             document.getElementById("scanned-code").innerText = "請將條碼對準相機...";
             document.getElementById("info-display").style.display = "none";
             document.getElementById("match-result").style.display = "block";
@@ -186,15 +170,19 @@
             html5QrcodeScanner = new Html5QrcodeScanner(
                 "reader", 
                 { 
-                    fps: 10,       // 每秒偵測幀數
-                    qrbox: { width: 250, height: 150 } // 掃描框大小，可根據條碼形狀調整
+                    fps: 10,       
+                    qrbox: { width: 250, height: 150 },
+                    supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+                    videoConstraints: {
+                        facingMode: { exact: "environment" } 
+                    },
+                    rememberLastUsedCamera: true 
                 },
-                /* verbose= */ false
+                false
             );
             html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
-        // 網頁載入後啟動
         window.onload = startScanner;
     </script>
 </body>
