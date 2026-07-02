@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2026文具展－產品定價搜尋器</title>
-    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+	<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -125,11 +125,11 @@
             background-color: #1557b0;
         }
 
-        /* 🆕 新增：提示區塊的樣式 */
+        /* 操作提示區塊樣式 */
         .tips-box {
             max-width: 460px;
             margin: 15px auto;
-            padding: 12px;
+            padding: 15px 35px 15px 15px; /* 右邊留空間給X按鈕 */
             background-color: #e8f4fd;
             border-left: 4px solid #1a73e8;
             border-radius: 4px;
@@ -137,6 +137,7 @@
             font-size: 0.9em;
             line-height: 1.5;
             color: #2c5282;
+            position: relative; /* 讓關閉按鈕可以絕對定位 */
         }
         .tips-box ul {
             margin: 5px 0 0 0;
@@ -145,8 +146,28 @@
         .tips-box li {
             margin-bottom: 3px;
         }
+        
+        /* 🆕 新增：右上角關閉按鈕樣式 */
+        .close-tips-btn {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c5282;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+        .close-tips-btn:hover {
+            opacity: 1;
+        }
 
-        /* 🆕 新增：手動輸入區塊樣式 */
+        /* 手動輸入區塊樣式 */
         .manual-container {
             margin-top: 15px;
             border-top: 1px solid #eee;
@@ -186,14 +207,16 @@
 </head>
 <body>
 
-    <h2>2026文具展－產品定價搜尋器</h2>
+	<h3>2026文具展</h3>
+    <h2>產品定價搜尋器</h2>
     
     <button id="start-camera-btn" class="btn-green" onclick="initScanner()">📷 點此開啟相機權限</button>
 
     <div id="tips-area" class="tips-box">
-        <strong>💡 提高辨識成功率小技巧：</strong>
+        <button class="close-tips-btn" onclick="closeTips()" title="關閉提示">×</button>
+        <strong>💡 提高辨識成功率：</strong>
         <ul>
-            <li><strong>防反光折射</strong>：請勿將鏡頭直正對準條碼。將手機或商品<strong>稍微傾斜 15~30 度角</strong>，避開強烈日光燈反光點，辨識速度會極快！</li>
+            <li><strong>防反光折射</strong>：請勿將鏡頭直正對準條碼。將手機或商品<strong>稍微傾斜 15~30 度角</strong>，避開強烈日光燈反光點。</li>
             <li><strong>拉遠再拉近</strong>：若包裝為亮面塑膠或亮面貼紙，建議將手機往後退約 30 公分，再慢慢向前靠近對焦。</li>
             <li><strong>均勻陰影</strong>：反光太強時，可用手部或身體稍微遮擋燈光，使條碼處於均勻陰影中。</li>
         </ul>
@@ -205,7 +228,7 @@
     </div>
     
     <div id="result-box">
-        <h3>比對結果</h3>
+        <h3>查詢結果</h3>
         <p id="scanned-code" style="text-align: center; color: #666;">等待掃描...</p>
         
         <div id="info-display" style="display: none;">
@@ -231,165 +254,112 @@
         </div>
     </div>
 
-<script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
-    
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-    let selectedDeviceId = null;
-    
-    // 🆕 用來儲存從 Google 下載到手機記憶體裡的本地資料庫
-    let localDatabase = {}; 
-    let isDatabaseLoaded = false;
-
-    // 🆕 網頁載入時，先去把整張 Google Sheet 下載下來
-    function preloadDatabase() {
-        document.getElementById("match-result").className = "loading";
-        document.getElementById("match-result").innerText = "🔄 正在同步雲端資料庫，請稍候...";
+    <script>
+        // 填入如果使用的是本地快取加速版(方案二)，或者原版的 GAS_URL
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
         
-        // 請求 GAS 獲取全部資料 (這裡傳送一個特別的參數或直接讀取)
-        // 為了相容原本的 GAS，我們讓它傳送一個空條碼，或者你可以擴充 GAS。
-        // 這裡我們直接向 GAS 要求整張表：
-        fetch(`${GAS_URL}?fetch_all=true`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.allData) {
-                    // 將資料轉換成鍵值對 { "條碼": { name: "品名", price: "定價" } } 方便極速查詢
-                    data.allData.forEach(row => {
-                        localDatabase[row.barcode] = {
-                            name: row.name,
-                            price: row.price
-                        };
-                    });
-                    isDatabaseLoaded = true;
-                    document.getElementById("match-result").innerText = "✅ 資料庫同步完畢，可以開始掃描！";
-                    document.getElementById("match-result").className = "";
-                } else {
-                    // 如果後端尚未支援 fetch_all，則會退回到原本的單筆即時連線模式
-                    console.log("未啟用本地快取模式，改用原即時連線比對。");
-                }
-            })
-            .catch(err => {
-                console.error("快取下載失敗，將採用即時連線比對機制:", err);
-            });
-    }
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+        let selectedDeviceId = null;
 
-    function initScanner() {
-        document.getElementById("start-camera-btn").style.display = "none";
-        document.getElementById("scanner-container").style.display = "block";
-        
-        codeReader.listVideoInputDevices()
-            .then((videoInputDevices) => {
-                const backCamera = videoInputDevices.find(device => 
-                    device.label.toLowerCase().includes('back') || 
-                    device.label.toLowerCase().includes('environment')
-                );
-                selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
-                startScanner();
-            })
-            .catch((err) => {
-                console.error(err);
-                alert("無法取得相機權限，請確認是否使用 HTTPS。");
-                document.getElementById("start-camera-btn").style.display = "block";
-                document.getElementById("scanner-container").style.display = "none";
-            });
-    }
-
-    function startScanner() {
-        document.getElementById("retry-btn").style.display = "none";
-        document.getElementById("scanned-code").innerText = "請將條碼對準相機...";
-        document.getElementById("info-display").style.display = "none";
-        document.getElementById("match-result").style.display = "block";
-        document.getElementById("match-result").innerText = "—";
-        document.getElementById("match-result").className = "";
-        document.getElementById("scanner-container").style.display = "block";
-        document.getElementById("manual-barcode-input").value = ""; 
-
-        codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
-            if (result) {
-                codeReader.reset(); 
-                document.getElementById("scanner-container").style.display = "none";
-                onScanSuccess(result.text);
-            }
-            if (err && !(err instanceof ZXing.NotFoundException)) {
-                console.error(err);
-            }
-        });
-    }
-
-    function submitManualBarcode() {
-        let barcodeText = document.getElementById("manual-barcode-input").value.trim();
-        if (barcodeText === "") {
-            alert("請先輸入條碼數字！");
-            return;
-        }
-        codeReader.reset();
-        document.getElementById("scanner-container").style.display = "none";
-        document.getElementById("manual-barcode-input").blur();
-        onScanSuccess(barcodeText);
-    }
-
-    // ⚡ 核心優化：收到條碼後，直接在手機本地進行 0 秒匹配
-    function onScanSuccess(barcodeText) {
-        document.getElementById("scanned-code").innerText = "已讀取條碼: " + barcodeText;
-        
-        // 如果已經下載好本地資料庫，直接本地比對，速度快 100 倍！
-        if (isDatabaseLoaded) {
-            let matchedData = localDatabase[barcodeText];
-            if (matchedData) {
-                document.getElementById("match-result").style.display = "none"; 
-                document.getElementById("info-display").style.display = "block"; 
-                document.getElementById("col-b").innerText = matchedData.name; 
-                
-                let price = matchedData.price;
-                if(!isNaN(price) && price !== "—" && price !== "") {
-                    document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
-                } else {
-                    document.getElementById("col-c").innerText = price; 
-                }
-            } else {
-                document.getElementById("match-result").className = "error";
-                document.getElementById("match-result").innerText = "找不到此條碼的資料";
-            }
-            document.getElementById("retry-btn").style.display = "block";
-            return; // 結束，不走慢速的網路連線
+        // 點擊 X 關閉提示框，並記錄在瀏覽器中
+        function closeTips() {
+            document.getElementById("tips-area").style.display = "none";
         }
 
-        // 備用機制：如果資料庫還沒下載完，才走原本的慢速線上即時查詢
-        document.getElementById("match-result").style.display = "block";
-        document.getElementById("match-result").className = "loading";
-        document.getElementById("match-result").innerText = "正在線上比對中...";
+        function initScanner() {
+            document.getElementById("start-camera-btn").style.display = "none";
+            document.getElementById("scanner-container").style.display = "block";
+            
+            codeReader.listVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const backCamera = videoInputDevices.find(device => 
+                        device.label.toLowerCase().includes('back') || 
+                        device.label.toLowerCase().includes('environment')
+                    );
+                    
+                    selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
+                    startScanner();
+                })
+                .catch((err) => {
+                    console.error(err);
+                    alert("無法取得相機權限，請確認是否使用 HTTPS 或是已開啟瀏覽器相機授權。");
+                    document.getElementById("start-camera-btn").style.display = "block";
+                    document.getElementById("scanner-container").style.display = "none";
+                });
+        }
 
-        fetch(`${GAS_URL}?barcode=${encodeURIComponent(barcodeText)}`)
-            .then(response => response.json()) 
-            .then(data => {
-                if (data.status === "success") {
-                    document.getElementById("match-result").style.display = "none"; 
-                    document.getElementById("info-display").style.display = "block"; 
-                    document.getElementById("col-b").innerText = data.columnB; 
-                    let price = data.columnC; 
-                    if(!isNaN(price) && price !== "—" && price !== "") {
-                        document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
+        function startScanner() {
+            document.getElementById("retry-btn").style.display = "none";
+            document.getElementById("scanned-code").innerText = "請將條碼對準相機...";
+            document.getElementById("info-display").style.display = "none";
+            document.getElementById("match-result").style.display = "block";
+            document.getElementById("match-result").innerText = "—";
+            document.getElementById("match-result").className = "";
+            document.getElementById("scanner-container").style.display = "block";
+            document.getElementById("manual-barcode-input").value = ""; 
+
+            codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                if (result) {
+                    codeReader.reset(); 
+                    document.getElementById("scanner-container").style.display = "none";
+                    onScanSuccess(result.text);
+                }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    console.error(err);
+                }
+            });
+        }
+
+        function submitManualBarcode() {
+            let barcodeText = document.getElementById("manual-barcode-input").value.trim();
+            if (barcodeText === "") {
+                alert("請先輸入條碼數字！");
+                return;
+            }
+            codeReader.reset();
+            document.getElementById("scanner-container").style.display = "none";
+            document.getElementById("manual-barcode-input").blur();
+            onScanSuccess(barcodeText);
+        }
+
+        function onScanSuccess(barcodeText) {
+            document.getElementById("scanned-code").innerText = "已讀取條碼: " + barcodeText;
+            document.getElementById("match-result").style.display = "block";
+            document.getElementById("match-result").className = "loading";
+            document.getElementById("match-result").innerText = "正在連線 Google Sheet 比對中...";
+
+            fetch(`${GAS_URL}?barcode=${encodeURIComponent(barcodeText)}`)
+                .then(response => response.json()) 
+                .then(data => {
+                    if (data.status === "success") {
+                        document.getElementById("match-result").style.display = "none"; 
+                        document.getElementById("info-display").style.display = "block"; 
+                        
+                        document.getElementById("col-b").innerText = data.columnB; 
+                        
+                        let price = data.columnC; 
+                        if(!isNaN(price) && price !== "—" && price !== "") {
+                            document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
+                        } else {
+                            document.getElementById("col-c").innerText = price; 
+                        }
                     } else {
-                        document.getElementById("col-c").innerText = price; 
+                        document.getElementById("match-result").className = "error";
+                        document.getElementById("match-result").innerText = "找不到此條碼的資料";
                     }
-                } else {
+                    document.getElementById("retry-btn").style.display = "block";
+                })
+                .catch(error => {
+                    console.error("Error:", error);
                     document.getElementById("match-result").className = "error";
-                    document.getElementById("match-result").innerText = "找不到此條碼的資料";
-                }
-                document.getElementById("retry-btn").style.display = "block";
-            })
-            .catch(error => {
-                console.error("Error:", error);
-                document.getElementById("match-result").className = "error";
-                document.getElementById("match-result").innerText = "連線發生錯誤，請稍後再試";
-                document.getElementById("retry-btn").style.display = "block";
-            });
-    }
+                    document.getElementById("match-result").innerText = "連線發生錯誤，請稍後再試";
+                    document.getElementById("retry-btn").style.display = "block";
+                });
+        }
 
-    window.onload = function() {
-        preloadDatabase(); // 頁面一開，立刻背景偷偷下載整張表
-        initScanner();
-    };
-</script>
+        window.onload = function() {
+            initScanner();
+        };
+    </script>
 </body>
 </html>
