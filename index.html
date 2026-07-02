@@ -255,7 +255,7 @@
     </div>
 
 	<script>
-		// 請填入最新部署、支援 fetch_all 的 GAS 網址
+		// 請填入你的 GAS 網址
 		const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
 		
 		const codeReader = new ZXing.BrowserMultiFormatReader();
@@ -270,7 +270,7 @@
 			document.getElementById("tips-area").style.display = "none";
 		}
 
-		// 先把整張 Google Sheet 的最新資料打包下載下來
+		// 背景同步整張 Google 試算表
 		function preloadDatabase() {
 			document.getElementById("match-result").className = "loading";
 			document.getElementById("match-result").innerText = "🔄 正在同步雲端最新價格，請稍候...";
@@ -279,7 +279,7 @@
 				.then(response => response.json())
 				.then(data => {
 					if (data && data.allData) {
-						// 將資料轉換成鍵值對 { "條碼": { name: "品名", price: "定價" } } 方便極速查詢
+						localDatabase = {}; // 重置
 						data.allData.forEach(row => {
 							localDatabase[row.barcode] = {
 								name: row.name,
@@ -294,7 +294,9 @@
 					}
 				})
 				.catch(err => {
-					console.error("快取下載失敗，採用單筆即時連線:", err);
+					console.error("快取下載失敗，採用單筆即時連線備用機制:", err);
+					document.getElementById("match-result").innerText = "⚠️ 無法同步雲端，將改用即時連線比對。";
+					document.getElementById("match-result").className = "";
 				});
 		}
 
@@ -320,7 +322,14 @@
 				});
 		}
 
+		// 🛠️ 修正點 1：開啟或重新開啟掃描前，確保徹底重置解碼器，防止相機卡死
 		function startScanner() {
+			try {
+				codeReader.reset(); // 🌟 強制重置釋放先前的相機資源與解碼任務
+			} catch(e) {
+				console.log("重置解碼器:", e);
+			}
+
 			document.getElementById("retry-btn").style.display = "none";
 			document.getElementById("scanned-code").innerText = "請將條碼對準相機...";
 			document.getElementById("info-display").style.display = "none";
@@ -332,7 +341,7 @@
 
 			codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
 				if (result) {
-					codeReader.reset(); 
+					codeReader.reset(); // 成功時關閉相機
 					document.getElementById("scanner-container").style.display = "none";
 					onScanSuccess(result.text);
 				}
@@ -342,23 +351,29 @@
 			});
 		}
 
+		// 手動輸入條碼查詢
 		function submitManualBarcode() {
 			let barcodeText = document.getElementById("manual-barcode-input").value.trim();
 			if (barcodeText === "") {
 				alert("請先輸入條碼數字！");
 				return;
 			}
-			codeReader.reset();
+			
+			try {
+				codeReader.reset(); // 🌟 手動輸入時也立即重置相機，防止相機背景掛起
+			} catch(e) {}
+			
 			document.getElementById("scanner-container").style.display = "none";
-			document.getElementById("manual-barcode-input").blur();
+			document.getElementById("manual-barcode-input").blur(); // 收起鍵盤
+			
 			onScanSuccess(barcodeText);
 		}
 
-		// 比對核心邏輯
+		// ⚡ 比對核心邏輯
 		function onScanSuccess(barcodeText) {
 			document.getElementById("scanned-code").innerText = "已讀取條碼: " + barcodeText;
 			
-			// 如果手機已存有快取資料庫，直接在手機內快速完成比對！
+			// 🚀 1. 本地快取匹配模式
 			if (isDatabaseLoaded) {
 				let matchedData = localDatabase[barcodeText];
 				if (matchedData) {
@@ -367,20 +382,23 @@
 					document.getElementById("col-b").innerText = matchedData.name; 
 					
 					let price = matchedData.price;
+					// 🛠️ 修正點 2：將原本誤寫的 col-d 改為 col-c，防止 JS 報錯卡死
 					if(!isNaN(price) && price !== "—" && price !== "") {
 						document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
 					} else {
 						document.getElementById("col-c").innerText = price; 
 					}
 				} else {
+					document.getElementById("info-display").style.display = "none";
+					document.getElementById("match-result").style.display = "block";
 					document.getElementById("match-result").className = "error";
 					document.getElementById("match-result").innerText = "找不到此條碼的資料";
 				}
 				document.getElementById("retry-btn").style.display = "block";
-				return; // 成功比對，直接中斷，不發送網路連線
+				return; // 結束
 			}
 
-			// 備用機制：快取還沒同步完或失敗時，走原本的即時線上比對
+			// 2. 備用機制：線上即時連線比對
 			document.getElementById("match-result").style.display = "block";
 			document.getElementById("match-result").className = "loading";
 			document.getElementById("match-result").innerText = "正在線上比對中...";
@@ -392,6 +410,7 @@
 						document.getElementById("match-result").style.display = "none"; 
 						document.getElementById("info-display").style.display = "block"; 
 						document.getElementById("col-b").innerText = data.columnB; 
+						
 						let price = data.columnC; 
 						if(!isNaN(price) && price !== "—" && price !== "") {
 							document.getElementById("col-c").innerText = "NT$ " + Number(price).toLocaleString();
@@ -399,6 +418,8 @@
 							document.getElementById("col-c").innerText = price; 
 						}
 					} else {
+						document.getElementById("info-display").style.display = "none";
+						document.getElementById("match-result").style.display = "block";
 						document.getElementById("match-result").className = "error";
 						document.getElementById("match-result").innerText = "找不到此條碼的資料";
 					}
@@ -406,6 +427,8 @@
 				})
 				.catch(error => {
 					console.error("Error:", error);
+					document.getElementById("info-display").style.display = "none";
+					document.getElementById("match-result").style.display = "block";
 					document.getElementById("match-result").className = "error";
 					document.getElementById("match-result").innerText = "連線發生錯誤，請稍後再試";
 					document.getElementById("retry-btn").style.display = "block";
@@ -413,8 +436,8 @@
 		}
 
 		window.onload = function() {
-			preloadDatabase();  // 背景同步整張 Google 試算表
-			initScanner();      // 啟動相機
+			preloadDatabase();  
+			initScanner();      
 		};
 	</script>
 </body>
