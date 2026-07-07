@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026文具展－產品定價查詢</title>
+    <title>產品定價查詢</title>
 	<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         body {
@@ -207,7 +207,6 @@
 </head>
 <body>
 
-	<h3>2026文具展</h3>
     <h2>產品定價查詢</h2>
     
     <button id="start-camera-btn" class="btn-green" onclick="initScanner()">📷 點此開啟相機權限</button>
@@ -256,7 +255,7 @@
 
 	<script>
 		// 請填入你的 GAS 網址
-		const GAS_URL = "https://script.google.com/macros/s/AKfycbwAUx-jUP90lBMAowV7pxEs882-6uwsjqfgosV04J7Z0sxzJuRyolv2bkXId3E0s83KGg/exec"; 
+		const GAS_URL = "YOUR_GAS_WEB_APP_URL"; 
 		
 		const codeReader = new ZXing.BrowserMultiFormatReader();
 		let selectedDeviceId = null;
