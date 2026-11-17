@@ -2,14 +2,12 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <!-- 設定視口寬度自適應裝置螢幕，確保手機瀏覽時不會出現版面縮放異常 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>產品定價查詢</title>
     
     <!-- 
-      引入條碼掃描核心插件：@zxing/library (v0.19.1)
-      插件來源：https://github.com/zxing-js/library
-      透過 unpkg CDN 載入 UMD 版本，會在全域環境註冊 window.ZXing 物件，提供多格式條碼解碼功能
+      條碼掃描插件：@zxing/library (v0.19.1)
+      來源：https://github.com/zxing-js/library
     -->
     <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     
@@ -23,7 +21,7 @@
             color: #333;
         }
 
-        /* 相機視訊外框容器：限制最大寬度並強制維持 4:3 長寬比，避免不同手機鏡頭造成畫面拉伸變形 */
+        /* 相機視訊外框*/
         #scanner-container {
             width: 100%;
             max-width: 500px;
@@ -56,7 +54,7 @@
             animation: laserAnimate 2s infinite linear;
         }
 
-        /* 定義掃描線上下來回移動的關鍵影格動畫 */
+        /* 掃描線上下來回移動的動畫 */
         @keyframes laserAnimate {
             0% { top: 20%; }
             50% { top: 80%; }
@@ -77,7 +75,7 @@
             margin: 15px 0;
         }
 
-        /* 查詢結果顯示卡片容器 */
+        /* 查詢結果顯示卡片 */
         #result-box {
             margin-top: 20px;
             padding: 15px;
@@ -238,7 +236,7 @@
     <!-- 手動開啟相機按鈕：當瀏覽器阻擋自動開啟相機時，提供使用者主動點擊觸發權限請求 -->
     <button id="start-camera-btn" class="btn-green" onclick="initScanner()">📷 點此開啟相機權限</button>
 
-    <!-- 掃描技巧提示區塊 -->
+    <!-- 提示區塊 -->
     <div id="tips-area" class="tips-box">
         <button class="close-tips-btn" onclick="closeTips()" title="關閉提示">×</button>
         <strong>💡 提高辨識成功率：</strong>
@@ -249,7 +247,7 @@
         </ul>
     </div>
 
-    <!-- 相機視訊串流與雷射掃描線容器 -->
+    <!-- 相機視訊串流與雷射掃描線 -->
     <div id="scanner-container" style="display: none;">
         <video id="video"></video>
         <div class="scan-laser"></div>
@@ -272,7 +270,7 @@
         <!-- 重新啟動相機掃描按鈕 -->
         <button id="retry-btn" class="btn-scanAgain" onclick="startScanner()">重新掃描</button>
 
-        <!-- 手動輸入區：設定 inputmode="numeric" 與 pattern="[0-9]*" 讓手機端自動喚起數字鍵盤 -->
+        <!-- 手動輸入區 -->
         <div class="manual-container">
             <p style="font-size: 0.85em; color: #718096; margin: 0 0 8px 0;">無法掃描？試試手動輸入條碼</p>
             <input 
@@ -291,13 +289,13 @@
         // 後端 Google Apps Script (GAS) 部署後的 Web App 網址
         const GAS_URL = "YOUR_GAS_WEB_APP_URL"; 
         
-        // 初始化 ZXing 多格式條碼解碼器實例（支援常見一維與二維條碼）
+        // 初始化 ZXing
         const codeReader = new ZXing.BrowserMultiFormatReader();
         
         // 儲存選定的攝影機裝置 ID
         let selectedDeviceId = null;
         
-        // 本地端快取資料庫物件（以條碼為 Key，包含品名與定價）及載入狀態旗標
+        // 本地端快取資料庫物件
         let localDatabase = {}; 
         let isDatabaseLoaded = false;
 
@@ -309,9 +307,8 @@
         }
 
         /**
-         * 預先載入雲端資料庫（快取機制）
-         * 透過 fetch_all=true 參數一次性將整張 Google 試算表資料下載至前端記憶體，
-         * 讓後續條碼比對可直接在本地完成，大幅降低網路延遲與 API 請求次數。
+         * 預先載入雲端資料庫
+         * 讓後續條碼比對可直接在本地完成，降低網路延遲與 API 請求次數。
          */
         function preloadDatabase() {
             document.getElementById("match-result").className = "loading";
@@ -322,7 +319,6 @@
                 .then(data => {
                     if (data && data.allData) {
                         localDatabase = {}; // 重置快取物件
-                        // 將陣列資料轉換為 Key-Value 雜湊表結構，使查詢時間複雜度降至 O(1)
                         data.allData.forEach(row => {
                             localDatabase[row.barcode] = {
                                 name: row.name,
@@ -337,7 +333,7 @@
                     }
                 })
                 .catch(err => {
-                    // 若快取下載失敗（如網路異常或網址未設定），不中斷流程，自動降級為單筆查詢模式
+                    // 若快取下載失敗，自動改為單筆查詢模式
                     console.error("快取下載失敗，採用單筆即時連線備用機制:", err);
                     document.getElementById("match-result").innerText = "⚠️ 無法同步雲端，將改用即時連線比對。";
                     document.getElementById("match-result").className = "";
@@ -375,7 +371,6 @@
 
         /**
          * 啟動或重新啟動條碼掃描流程
-         * 執行前會先強制呼叫 reset() 釋放先前的視訊串流與解碼任務，防止手機瀏覽器因資源佔用而畫面卡死。
          */
         function startScanner() {
             try {
@@ -398,7 +393,7 @@
             // 開始從指定攝影機串流連續擷取畫面並解碼
             codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
                 if (result) {
-                    // 成功辨識出條碼後，立即關閉相機以節省電力並停止重複觸發
+                    // 成功辨識出條碼後，立即關閉相機，停止重複觸發
                     codeReader.reset();
                     document.getElementById("scanner-container").style.display = "none";
                     onScanSuccess(result.text);
@@ -412,7 +407,7 @@
 
         /**
          * 處理手動輸入條碼查詢
-         * 驗證輸入非空值後，立即關閉正在背景執行的相機串流並收起手機虛擬鍵盤，隨後進入資料比對流程。
+         * 驗證輸入非空值後，立即關閉正在背景執行的相機串流並收起手機虛擬鍵盤，進入資料比對流程。
          */
         function submitManualBarcode() {
             let barcodeText = document.getElementById("manual-barcode-input").value.trim();
@@ -434,13 +429,12 @@
 
         /**
          * 條碼資料比對核心邏輯（雙軌查詢機制）
-         * 優先檢查本地快取（localDatabase）是否已載入；若無，則改以 fetch 向 GAS 發送單筆即時查詢請求。
-         * @param {string} barcodeText - 掃描或手動輸入取得的條碼字串
+         * 優先檢查本地快取（localDatabase）是否已載入；若無，則改發送單筆即時查詢請求。
          */
         function onScanSuccess(barcodeText) {
             document.getElementById("scanned-code").innerText = "已讀取條碼: " + barcodeText;
             
-            // 模式 1：本地快取記憶體比對（零延遲）
+            // 模式 1：本地快取記憶體比對
             if (isDatabaseLoaded) {
                 let matchedData = localDatabase[barcodeText];
                 if (matchedData) {
@@ -463,7 +457,7 @@
                     document.getElementById("match-result").innerText = "找不到此條碼的資料";
                 }
                 document.getElementById("retry-btn").style.display = "block";
-                return; // 結束函式執行，不需再發送網路請求
+                return; // 結束執行，不需再發送請求
             }
 
             // 模式 2：備用機制，向後端 GAS 發送單筆線上即時查詢
